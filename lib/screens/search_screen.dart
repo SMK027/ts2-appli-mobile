@@ -3,9 +3,11 @@
 import 'dart:async';
 import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
+import 'package:geolocator/geolocator.dart';
 import 'package:intl/intl.dart';
 import '../config/api_config.dart';
 import '../services/api_service.dart';
+import '../services/location_service.dart';
 import '../services/property_service.dart';
 import '../services/search_filter_service.dart';
 import 'map_screen.dart';
@@ -31,6 +33,8 @@ class _SearchScreenState extends State<SearchScreen> {
   bool _searching = false;
   DateTime? _dateDebut;
   DateTime? _dateFin;
+  bool _useDistanceFilter = false;
+  double _distanceMaxKm = 35;
 
   // Mappings nom → id pour l'API
   Map<String, int> _communeNameToId = {};
@@ -53,6 +57,8 @@ class _SearchScreenState extends State<SearchScreen> {
     _tarifRange = _filters.tarifRange;
     _dateDebut = _filters.dateDebut;
     _dateFin = _filters.dateFin;
+    _useDistanceFilter = _filters.useDistanceFilter;
+    _distanceMaxKm = _filters.distanceMaxKm;
   }
 
   @override
@@ -70,6 +76,8 @@ class _SearchScreenState extends State<SearchScreen> {
     _filters.tarifRange = _tarifRange;
     _filters.dateDebut = _dateDebut;
     _filters.dateFin = _dateFin;
+    _filters.useDistanceFilter = _useDistanceFilter;
+    _filters.distanceMaxKm = _distanceMaxKm;
   }
 
   void _resetFilters() {
@@ -83,6 +91,8 @@ class _SearchScreenState extends State<SearchScreen> {
       _animaux = 'Tous';
       _dateDebut = null;
       _dateFin = null;
+      _useDistanceFilter = false;
+      _distanceMaxKm = 35;
     });
     _filters.reset();
   }
@@ -201,6 +211,33 @@ class _SearchScreenState extends State<SearchScreen> {
         dateDebut: _dateDebut!,
         dateFin: _dateFin!,
       );
+    }
+
+    if (_useDistanceFilter && results.isNotEmpty) {
+      final position = await LocationService().getCurrentPosition();
+      if (position != null) {
+        results = results.where((p) {
+          if (p.distanceKm != null) {
+            return p.distanceKm! <= _distanceMaxKm;
+          }
+          if (p.latitude == null || p.longitude == null) {
+            return false;
+          }
+          final meters = Geolocator.distanceBetween(
+            position.latitude,
+            position.longitude,
+            p.latitude!,
+            p.longitude!,
+          );
+          return (meters / 1000.0) <= _distanceMaxKm;
+        }).toList();
+      } else if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Localisation indisponible : filtre de distance ignoré.'),
+          ),
+        );
+      }
     }
 
     if (!mounted) return;
@@ -420,6 +457,71 @@ class _SearchScreenState extends State<SearchScreen> {
                   ),
                 )),
               ],
+            ),
+            const SizedBox(height: 16),
+
+            // Ligne 5 : Distance (facultative)
+            _buildFilterField(
+              label: 'Distance maximale (facultatif)',
+              icon: Icons.social_distance,
+              iconColor: const Color(0xFF10B981),
+              child: Column(
+                children: [
+                  SwitchListTile.adaptive(
+                    contentPadding: EdgeInsets.zero,
+                    value: _useDistanceFilter,
+                    title: const Text(
+                      'Activer le filtre de distance',
+                      style: TextStyle(fontSize: 14, fontWeight: FontWeight.w500),
+                    ),
+                    activeColor: const Color(0xFF10B981),
+                    onChanged: (value) {
+                      setState(() => _useDistanceFilter = value);
+                      _saveFilters();
+                    },
+                  ),
+                  if (_useDistanceFilter)
+                    Column(
+                      children: [
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            const Text(
+                              'Rayon',
+                              style: TextStyle(fontSize: 13, color: Colors.grey),
+                            ),
+                            Text(
+                              '${_distanceMaxKm.round()} km',
+                              style: const TextStyle(
+                                fontWeight: FontWeight.w600,
+                                color: Color(0xFF10B981),
+                              ),
+                            ),
+                          ],
+                        ),
+                        SliderTheme(
+                          data: SliderTheme.of(context).copyWith(
+                            activeTrackColor: const Color(0xFF10B981),
+                            inactiveTrackColor: Colors.grey.shade200,
+                            thumbColor: const Color(0xFF10B981),
+                            overlayColor: const Color(0xFF10B981).withValues(alpha: 0.2),
+                          ),
+                          child: Slider(
+                            value: _distanceMaxKm,
+                            min: 1,
+                            max: 100,
+                            divisions: 99,
+                            label: '${_distanceMaxKm.round()} km',
+                            onChanged: (value) {
+                              setState(() => _distanceMaxKm = value);
+                              _saveFilters();
+                            },
+                          ),
+                        ),
+                      ],
+                    ),
+                ],
+              ),
             ),
             const SizedBox(height: 32),
 

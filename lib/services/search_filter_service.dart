@@ -14,6 +14,8 @@ class SearchFilterService {
   RangeValues tarifRange = const RangeValues(0, 2000);
   DateTime? dateDebut;
   DateTime? dateFin;
+  bool useDistanceFilter = false;
+  double distanceMaxKm = 35;
 
   void reset() {
     selectedCommune = '';
@@ -25,5 +27,7 @@ class SearchFilterService {
     tarifRange = const RangeValues(0, 2000);
     dateDebut = null;
     dateFin = null;
+    useDistanceFilter = false;
+    distanceMaxKm = 35;
   }
 }

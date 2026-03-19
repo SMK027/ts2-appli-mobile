@@ -1,7 +1,9 @@
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
+import 'package:geolocator/geolocator.dart';
 
 import '../models/property.dart';
+import '../services/location_service.dart';
 import '../services/favorite_service.dart';
 import '../services/reservation_service.dart';
 import '../services/search_filter_service.dart';
@@ -20,11 +22,13 @@ class _PropertyDetailScreenState extends State<PropertyDetailScreen> {
   Property? _detail;
   List<String> _photos = [];
   bool _loading = true;
+  double? _userDistance;
 
   @override
   void initState() {
     super.initState();
     _loadDetail();
+    _calculateDistance();
   }
 
   Future<void> _loadDetail() async {
@@ -40,6 +44,29 @@ class _PropertyDetailScreenState extends State<PropertyDetailScreen> {
       _photos = results[1] as List<String>;
       _loading = false;
     });
+  }
+
+  Future<void> _calculateDistance() async {
+    try {
+      final position = await LocationService().getCurrentPosition();
+      if (!mounted || position == null) return;
+      
+      final p = _detail ?? widget.property;
+      if (p.latitude == null || p.longitude == null) return;
+      
+      final meters = Geolocator.distanceBetween(
+        position.latitude,
+        position.longitude,
+        p.latitude!,
+        p.longitude!,
+      );
+      
+      setState(() {
+        _userDistance = meters / 1000.0;
+      });
+    } catch (_) {
+      // Silently fail if location unavailable
+    }
   }
 
   @override
@@ -153,6 +180,11 @@ class _PropertyDetailScreenState extends State<PropertyDetailScreen> {
                               style: const TextStyle(color: Colors.grey, fontSize: 14),
                             ),
                           ),
+                          if (_userDistance != null)
+                            Text(
+                              '${_userDistance!.toStringAsFixed(1)} km',
+                              style: const TextStyle(color: Colors.grey, fontSize: 13, fontWeight: FontWeight.w500),
+                            ),
                         ],
                       ),
                       const SizedBox(height: 10),

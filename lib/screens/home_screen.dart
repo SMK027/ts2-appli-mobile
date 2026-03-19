@@ -168,7 +168,7 @@ class HomeScreenState extends State<HomeScreen> {
 
   List<Property> get _filteredNearby {
     final nearby = _nearbyProperties
-        .where((p) => p.distanceKm != null && p.distanceKm! <= 35.0);
+      .where((p) => p.distanceKm != null && p.distanceKm! <= 35.0);
     if (_selectedCategory == 'Tous') return nearby.toList();
     return nearby
         .where((p) => p.typeBien.toLowerCase() == _selectedCategory.toLowerCase())
