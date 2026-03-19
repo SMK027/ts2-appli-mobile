@@ -18,6 +18,8 @@ class NotificationsScreenState extends State<NotificationsScreen> {
 
   int get _unreadCount =>
       _notifications.where((n) => !_isRead(n['is_read'])).length;
+  List<Map<String, dynamic>> get _visibleNotifications =>
+      _notifications.where((n) => !_isRead(n['is_read'])).toList();
 
   bool _isRead(dynamic value) {
     if (value is bool) return value;
@@ -63,8 +65,12 @@ class NotificationsScreenState extends State<NotificationsScreen> {
     setState(() => notif['is_read'] = 1);
   }
 
-  void _removeNotification(int index) {
-    setState(() => _notifications.removeAt(index));
+  void _removeNotificationById(dynamic idNotification) {
+    setState(() {
+      _notifications.removeWhere(
+        (n) => n['id_notification']?.toString() == idNotification?.toString(),
+      );
+    });
   }
 
   void _openReviewDialog(Map<String, dynamic> notif) {
@@ -116,7 +122,7 @@ class NotificationsScreenState extends State<NotificationsScreen> {
               )
             : null,
         actions: [
-          if (_notifications.any((n) => !_isRead(n['is_read'])))
+          if (_visibleNotifications.isNotEmpty)
             TextButton(
               onPressed: _markAllAsRead,
               child: const Text(
@@ -128,15 +134,15 @@ class NotificationsScreenState extends State<NotificationsScreen> {
       ),
       body: _loading
           ? const Center(child: CircularProgressIndicator())
-          : _notifications.isEmpty
+          : _visibleNotifications.isEmpty
               ? _buildEmptyState()
               : RefreshIndicator(
                   onRefresh: _loadNotifications,
                   child: ListView.builder(
                     padding: const EdgeInsets.all(16),
-                    itemCount: _notifications.length,
+                    itemCount: _visibleNotifications.length,
                     itemBuilder: (_, i) =>
-                        _buildNotificationCard(_notifications[i], i),
+                        _buildNotificationCard(_visibleNotifications[i]),
                   ),
                 ),
     );
@@ -206,7 +212,7 @@ class NotificationsScreenState extends State<NotificationsScreen> {
     return DateFormat('dd/MM/yyyy').format(date);
   }
 
-  Widget _buildNotificationCard(Map<String, dynamic> notif, int index) {
+  Widget _buildNotificationCard(Map<String, dynamic> notif) {
     final type = notif['type']?.toString();
     final isRead = _isRead(notif['is_read']);
     final message = notif['message']?.toString() ?? '';
@@ -224,7 +230,7 @@ class NotificationsScreenState extends State<NotificationsScreen> {
         ),
         child: const Icon(Icons.delete, color: Colors.white),
       ),
-      onDismissed: (_) => _removeNotification(index),
+      onDismissed: (_) => _removeNotificationById(notif['id_notification']),
       child: Card(
         margin: const EdgeInsets.only(bottom: 8),
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
