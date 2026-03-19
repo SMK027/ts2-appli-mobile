@@ -16,7 +16,15 @@ class NotificationsScreenState extends State<NotificationsScreen> {
   List<Map<String, dynamic>> _notifications = [];
   bool _loading = true;
 
-  int get _unreadCount => _notifications.where((n) => n['is_read'] == 0).length;
+  int get _unreadCount =>
+      _notifications.where((n) => !_isRead(n['is_read'])).length;
+
+  bool _isRead(dynamic value) {
+    if (value is bool) return value;
+    if (value is int) return value == 1;
+    final s = value?.toString().toLowerCase();
+    return s == '1' || s == 'true';
+  }
 
   @override
   void initState() {
@@ -47,7 +55,7 @@ class NotificationsScreenState extends State<NotificationsScreen> {
   }
 
   Future<void> _markAsRead(Map<String, dynamic> notif) async {
-    if (notif['is_read'] == 1) return;
+    if (_isRead(notif['is_read'])) return;
     final id = notif['id_notification'];
     final intId = id is int ? id : int.parse(id.toString());
     await NotificationService().markAsRead(intId);
@@ -108,7 +116,7 @@ class NotificationsScreenState extends State<NotificationsScreen> {
               )
             : null,
         actions: [
-          if (_notifications.any((n) => n['is_read'] == 0))
+          if (_notifications.any((n) => !_isRead(n['is_read'])))
             TextButton(
               onPressed: _markAllAsRead,
               child: const Text(
@@ -200,7 +208,7 @@ class NotificationsScreenState extends State<NotificationsScreen> {
 
   Widget _buildNotificationCard(Map<String, dynamic> notif, int index) {
     final type = notif['type']?.toString();
-    final isRead = notif['is_read'] == 1;
+    final isRead = _isRead(notif['is_read']);
     final message = notif['message']?.toString() ?? '';
 
     return Dismissible(

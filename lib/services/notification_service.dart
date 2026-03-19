@@ -1,5 +1,7 @@
 // Issue #20 - [CF-NOTIFS] : Service de gestion des notifications
 // Issue #21 - [CF-NOTIFS] : Dépôt d'avis
+import 'dart:convert';
+
 import 'package:dio/dio.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
@@ -12,7 +14,7 @@ class NotificationService {
   factory NotificationService() => _instance;
   NotificationService._internal();
 
-  static const _pushedReviewNotificationsKey = 'pushed_review_notifications';
+  static const _pushedNotificationsKey = 'pushed_notifications';
 
   final FlutterLocalNotificationsPlugin _localNotifications =
       FlutterLocalNotificationsPlugin();
@@ -42,68 +44,76 @@ class NotificationService {
           await ApiService().client.get(ApiConfig.notificationsEndpoint);
       final notifications =
           (response.data as List).cast<Map<String, dynamic>>();
-      await _notifyReviewRequestPush(notifications);
+      await _notifyUnreadPush(notifications);
       return notifications;
     } on DioException catch (_) {
       return [];
     }
   }
 
-  Future<void> _notifyReviewRequestPush(
+  Future<void> _notifyUnreadPush(
     List<Map<String, dynamic>> notifications,
   ) async {
     await initializeLocalPush();
 
-    final pushedIds = await _loadPushedReviewIds();
+    final pushedKeys = await _loadPushedNotificationKeys();
 
     for (final notif in notifications) {
       final type = notif['type']?.toString();
-      final isRead = notif['is_read'] == 1;
-      if (type != 'review_request' || isRead) continue;
+      final isRead = _isRead(notif['is_read']);
+      if (isRead) continue;
 
-      final idRaw = notif['id_notification'];
-      final notifId = _toInt(idRaw);
-      if (notifId == null || pushedIds.contains(notifId)) continue;
+      final uniqueKey = _notificationUniqueKey(notif);
+      if (pushedKeys.contains(uniqueKey)) continue;
 
-      final message = notif['message']?.toString() ??
-          'Votre location est terminée, laissez un avis sur votre bien meublé.';
+      final notifId = _notificationId(notif);
+      final title = _notificationTitle(type);
+      final message = _notificationMessage(type, notif);
 
       await _localNotifications.show(
         notifId,
-        'Nestvia - Avis demandé',
+        title,
         message,
         const NotificationDetails(
           android: AndroidNotificationDetails(
-            'review_request_channel',
-            'Demandes d\'avis',
-            channelDescription:
-                'Notifications de fin de location pour laisser un avis',
+            'nestvia_notifications_channel',
+            'Notifications Nestvia',
+            channelDescription: 'Notifications importantes de l\'application',
             importance: Importance.max,
             priority: Priority.high,
           ),
         ),
       );
 
-      pushedIds.add(notifId);
+      pushedKeys.add(uniqueKey);
     }
 
-    await _savePushedReviewIds(pushedIds);
+    await _savePushedNotificationKeys(pushedKeys);
   }
 
-  Future<Set<int>> _loadPushedReviewIds() async {
-    final raw = await _storage.read(key: _pushedReviewNotificationsKey);
-    if (raw == null || raw.trim().isEmpty) return <int>{};
-
-    return raw
-        .split(',')
-        .map((s) => int.tryParse(s.trim()))
-        .whereType<int>()
-        .toSet();
+  Future<Set<String>> _loadPushedNotificationKeys() async {
+    final raw = await _storage.read(key: _pushedNotificationsKey);
+    if (raw == null || raw.trim().isEmpty) return <String>{};
+    try {
+      final decoded = jsonDecode(raw);
+      if (decoded is List) {
+        return decoded.map((e) => e.toString()).toSet();
+      }
+    } catch (_) {
+      return raw
+          .split(',')
+          .map((s) => s.trim())
+          .where((s) => s.isNotEmpty)
+          .toSet();
+    }
+    return <String>{};
   }
 
-  Future<void> _savePushedReviewIds(Set<int> ids) async {
-    final serialized = ids.join(',');
-    await _storage.write(key: _pushedReviewNotificationsKey, value: serialized);
+  Future<void> _savePushedNotificationKeys(Set<String> keys) async {
+    await _storage.write(
+      key: _pushedNotificationsKey,
+      value: jsonEncode(keys.toList()),
+    );
   }
 
   int? _toInt(dynamic value) {
@@ -112,10 +122,56 @@ class NotificationService {
     return int.tryParse(value.toString());
   }
 
+  bool _isRead(dynamic value) {
+    if (value is bool) return value;
+    if (value is int) return value == 1;
+    final s = value?.toString().toLowerCase();
+    return s == '1' || s == 'true';
+  }
+
+  String _notificationUniqueKey(Map<String, dynamic> notif) {
+    final id = _toInt(notif['id_notification'] ?? notif['id']);
+    if (id != null) return 'id:$id';
+
+    final type = notif['type']?.toString() ?? '';
+    final message = notif['message']?.toString() ?? '';
+    final created =
+        notif['date_created']?.toString() ?? notif['created_at']?.toString() ?? '';
+    return 'fallback:$type|$message|$created';
+  }
+
+  int _notificationId(Map<String, dynamic> notif) {
+    final id = _toInt(notif['id_notification'] ?? notif['id']);
+    if (id != null) return id;
+    return _notificationUniqueKey(notif).hashCode & 0x7fffffff;
+  }
+
+  String _notificationTitle(String? type) {
+    switch (type) {
+      case 'review_request':
+        return 'Nestvia - Avis demandé';
+      case 'reservation':
+        return 'Nestvia - Réservation';
+      case 'payment':
+        return 'Nestvia - Paiement';
+      default:
+        return 'Nestvia - Nouvelle notification';
+    }
+  }
+
+  String _notificationMessage(String? type, Map<String, dynamic> notif) {
+    final message = notif['message']?.toString();
+    if (message != null && message.isNotEmpty) return message;
+    if (type == 'review_request') {
+      return 'Votre location est terminée, laissez un avis sur votre bien meublé.';
+    }
+    return 'Vous avez reçu une nouvelle notification.';
+  }
+
   /// Nombre de notifications non lues
   Future<int> getUnreadCount() async {
     final notifs = await getNotifications();
-    return notifs.where((n) => n['is_read'] == 0).length;
+    return notifs.where((n) => !_isRead(n['is_read'])).length;
   }
 
   /// Marquer une notification comme lue (PATCH /notifications/:id/read)
@@ -133,7 +189,7 @@ class NotificationService {
   /// Marquer toutes les notifications comme lues
   Future<void> markAllAsRead(List<Map<String, dynamic>> notifs) async {
     for (final n in notifs) {
-      if (n['is_read'] == 0) {
+      if (!_isRead(n['is_read'])) {
         final id = n['id_notification'];
         if (id != null) {
           await markAsRead(id is int ? id : int.parse(id.toString()));
