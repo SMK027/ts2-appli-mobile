@@ -2,6 +2,7 @@
 // Photo, nom, note, localisation, type, superficie, prestations, prix, bouton Réserver
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
+import 'package:geolocator/geolocator.dart';
 import '../models/property.dart';
 import '../services/favorite_service.dart';
 import '../services/reservation_service.dart';
@@ -12,8 +13,17 @@ class PropertyPopup extends StatefulWidget {
   final Property property;
   final DateTime? dateDebut;
   final DateTime? dateFin;
+  final double? userLatitude;
+  final double? userLongitude;
 
-  const PropertyPopup({super.key, required this.property, this.dateDebut, this.dateFin});
+  const PropertyPopup({
+    super.key,
+    required this.property,
+    this.dateDebut,
+    this.dateFin,
+    this.userLatitude,
+    this.userLongitude,
+  });
 
   @override
   State<PropertyPopup> createState() => _PropertyPopupState();
@@ -23,6 +33,20 @@ class _PropertyPopupState extends State<PropertyPopup> {
   Property? _detail;
   List<String> _photos = [];
   bool _loading = true;
+
+  double? _distanceToPropertyKm(Property p) {
+    if (p.distanceKm != null) return p.distanceKm;
+    if (widget.userLatitude == null || widget.userLongitude == null) return null;
+    if (p.latitude == null || p.longitude == null) return null;
+
+    final meters = Geolocator.distanceBetween(
+      widget.userLatitude!,
+      widget.userLongitude!,
+      p.latitude!,
+      p.longitude!,
+    );
+    return meters / 1000.0;
+  }
 
   @override
   void initState() {
@@ -47,6 +71,7 @@ class _PropertyPopupState extends State<PropertyPopup> {
   @override
   Widget build(BuildContext context) {
     final p = _detail ?? widget.property;
+    final distanceKm = _distanceToPropertyKm(p);
     final isFav = FavoriteService().isFavorite(p.id);
     final photoUrl =
         _photos.isNotEmpty ? _photos.first : p.photoUrl;
@@ -183,6 +208,15 @@ class _PropertyPopupState extends State<PropertyPopup> {
                                 color: Colors.grey, fontSize: 13),
                           ),
                         ),
+                        if (distanceKm != null)
+                          Text(
+                            '${distanceKm.toStringAsFixed(1)} km',
+                            style: const TextStyle(
+                              color: Colors.grey,
+                              fontSize: 12,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
                       ],
                     ),
                     const SizedBox(height: 6),

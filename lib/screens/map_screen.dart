@@ -106,6 +106,8 @@ class MapScreenState extends State<MapScreen> {
         property: property,
         dateDebut: widget.dateDebut,
         dateFin: widget.dateFin,
+        userLatitude: _hasUserPosition ? _userPosition.latitude : null,
+        userLongitude: _hasUserPosition ? _userPosition.longitude : null,
       ),
     );
   }
