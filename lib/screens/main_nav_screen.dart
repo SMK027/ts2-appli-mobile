@@ -1,5 +1,7 @@
 // Navigation principale avec BottomNavigationBar
 // Issues #19, #20, #22, #27, #28 - Accueil, Carte, Favoris, Notifications, Profil
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import '../services/notification_service.dart';
 import 'home_screen.dart';
@@ -18,6 +20,7 @@ class MainNavScreen extends StatefulWidget {
 class MainNavScreenState extends State<MainNavScreen> {
   int _currentIndex = 0;
   int _unreadNotifs = 0;
+  Timer? _notifPollingTimer;
 
   final _homeKey = GlobalKey<HomeScreenState>();
   final _mapKey = GlobalKey<MapScreenState>();
@@ -38,6 +41,15 @@ class MainNavScreenState extends State<MainNavScreen> {
       ProfileScreen(key: _profileKey),
     ];
     _loadUnreadCount();
+    _notifPollingTimer = Timer.periodic(const Duration(minutes: 1), (_) {
+      _loadUnreadCount();
+    });
+  }
+
+  @override
+  void dispose() {
+    _notifPollingTimer?.cancel();
+    super.dispose();
   }
 
   Future<void> _loadUnreadCount() async {
