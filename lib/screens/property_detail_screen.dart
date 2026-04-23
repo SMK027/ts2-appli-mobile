@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:geolocator/geolocator.dart';
 
 import '../models/property.dart';
+import '../models/review.dart';
 import '../services/location_service.dart';
 import '../services/favorite_service.dart';
 import '../services/reservation_service.dart';
@@ -21,6 +22,7 @@ class PropertyDetailScreen extends StatefulWidget {
 class _PropertyDetailScreenState extends State<PropertyDetailScreen> {
   Property? _detail;
   List<String> _photos = [];
+  List<Review> _reviews = [];
   bool _loading = true;
   double? _userDistance;
 
@@ -36,12 +38,14 @@ class _PropertyDetailScreenState extends State<PropertyDetailScreen> {
     final results = await Future.wait([
       service.getPropertyDetail(widget.property.id),
       service.getPropertyPhotos(widget.property.id),
+      service.getPropertyReviews(widget.property.id),
     ]);
 
     if (!mounted) return;
     setState(() {
       _detail = results[0] as Property?;
       _photos = results[1] as List<String>;
+      _reviews = results[2] as List<Review>;
       _loading = false;
     });
   }
@@ -67,6 +71,115 @@ class _PropertyDetailScreenState extends State<PropertyDetailScreen> {
     } catch (_) {
       // Silently fail if location unavailable
     }
+  }
+
+  Widget _buildReviewsSection() {
+    if (_reviews.isEmpty) {
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: const [
+          Text('Avis', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 16)),
+          SizedBox(height: 8),
+          Text('Aucun avis pour ce bien.', style: TextStyle(color: Colors.grey, fontSize: 13)),
+        ],
+      );
+    }
+
+    final avgRating = _reviews.map((r) => r.rating).reduce((a, b) => a + b) / _reviews.length;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            const Text('Avis', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 16)),
+            const SizedBox(width: 8),
+            const Icon(Icons.star, color: Colors.amber, size: 16),
+            const SizedBox(width: 2),
+            Text(
+              avgRating.toStringAsFixed(1),
+              style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 14),
+            ),
+            Text(
+              ' (${_reviews.length})',
+              style: const TextStyle(color: Colors.grey, fontSize: 13),
+            ),
+          ],
+        ),
+        const SizedBox(height: 10),
+        ..._reviews.map(_buildReviewCard),
+      ],
+    );
+  }
+
+  Widget _buildReviewCard(Review review) {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 12),
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: Theme.of(context).cardColor,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: Colors.grey.shade200),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              CircleAvatar(
+                radius: 16,
+                backgroundColor: const Color(0xFF1A3C5E).withAlpha(30),
+                child: Text(
+                  review.prenomLocataire?.isNotEmpty == true
+                      ? review.prenomLocataire![0].toUpperCase()
+                      : '?',
+                  style: const TextStyle(
+                    color: Color(0xFF1A3C5E),
+                    fontWeight: FontWeight.bold,
+                    fontSize: 13,
+                  ),
+                ),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      review.displayName,
+                      style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 13),
+                    ),
+                    if (review.dateAvis != null)
+                      Text(
+                        '${review.dateAvis!.day.toString().padLeft(2, '0')}/'
+                        '${review.dateAvis!.month.toString().padLeft(2, '0')}/'
+                        '${review.dateAvis!.year}',
+                        style: const TextStyle(color: Colors.grey, fontSize: 11),
+                      ),
+                  ],
+                ),
+              ),
+              Row(
+                children: List.generate(5, (i) {
+                  return Icon(
+                    i < review.rating ? Icons.star : Icons.star_border,
+                    color: Colors.amber,
+                    size: 14,
+                  );
+                }),
+              ),
+            ],
+          ),
+          if (review.comment != null && review.comment!.isNotEmpty) ...[
+            const SizedBox(height: 8),
+            Text(
+              review.comment!,
+              style: const TextStyle(fontSize: 13, color: Colors.black87),
+            ),
+          ],
+        ],
+      ),
+    );
   }
 
   @override
@@ -239,6 +352,11 @@ class _PropertyDetailScreenState extends State<PropertyDetailScreen> {
                           }).toList(),
                         ),
                       ],
+                      const SizedBox(height: 24),
+
+                      // Section avis
+                      _buildReviewsSection(),
+
                       const SizedBox(height: 24),
                       Row(
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,

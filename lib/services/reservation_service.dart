@@ -3,6 +3,7 @@
 import 'package:dio/dio.dart';
 import '../config/api_config.dart';
 import '../models/property.dart';
+import '../models/review.dart';
 import 'api_service.dart';
 
 class ReservationService {
@@ -52,6 +53,21 @@ class ReservationService {
           .client
           .get('${ApiConfig.biensEndpoint}/$idBien/tarifs');
       return (response.data as List).cast<Map<String, dynamic>>();
+    } on DioException catch (_) {
+      return [];
+    }
+  }
+
+  /// Récupère les avis d'un bien (GET /biens/:id/avis)
+  Future<List<Review>> getPropertyReviews(int idBien) async {
+    try {
+      final response = await ApiService()
+          .client
+          .get('${ApiConfig.biensEndpoint}/$idBien/avis');
+      final List data = response.data as List;
+      return data
+          .map((e) => Review.fromJson(e as Map<String, dynamic>))
+          .toList();
     } on DioException catch (_) {
       return [];
     }

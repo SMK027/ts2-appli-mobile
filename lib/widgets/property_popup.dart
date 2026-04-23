@@ -4,6 +4,7 @@ import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:geolocator/geolocator.dart';
 import '../models/property.dart';
+import '../models/review.dart';
 import '../services/favorite_service.dart';
 import '../services/reservation_service.dart';
 import '../services/search_filter_service.dart';
@@ -32,6 +33,7 @@ class PropertyPopup extends StatefulWidget {
 class _PropertyPopupState extends State<PropertyPopup> {
   Property? _detail;
   List<String> _photos = [];
+  List<Review> _reviews = [];
   bool _loading = true;
   int _currentPhotoIndex = 0;
 
@@ -73,13 +75,90 @@ class _PropertyPopupState extends State<PropertyPopup> {
     final results = await Future.wait([
       service.getPropertyDetail(widget.property.id),
       service.getPropertyPhotos(widget.property.id),
+      service.getPropertyReviews(widget.property.id),
     ]);
     if (!mounted) return;
     setState(() {
       _detail = results[0] as Property?;
       _photos = results[1] as List<String>;
+      _reviews = results[2] as List<Review>;
       _loading = false;
     });
+  }
+
+  List<Widget> _buildReviewsPreview() {
+    final avgRating = _reviews.map((r) => r.rating).reduce((a, b) => a + b) / _reviews.length;
+    final previewed = _reviews.take(3).toList();
+
+    return [
+      const Divider(height: 1),
+      const SizedBox(height: 10),
+      Row(
+        children: [
+          const Text('Avis', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 13)),
+          const SizedBox(width: 6),
+          const Icon(Icons.star, color: Colors.amber, size: 13),
+          const SizedBox(width: 2),
+          Text(avgRating.toStringAsFixed(1),
+              style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 12)),
+          Text(' (${_reviews.length})',
+              style: const TextStyle(color: Colors.grey, fontSize: 12)),
+        ],
+      ),
+      const SizedBox(height: 8),
+      ...previewed.map((review) => Padding(
+            padding: const EdgeInsets.only(bottom: 8),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                CircleAvatar(
+                  radius: 13,
+                  backgroundColor: const Color(0xFF1A3C5E).withAlpha(30),
+                  child: Text(
+                    review.prenomLocataire?.isNotEmpty == true
+                        ? review.prenomLocataire![0].toUpperCase()
+                        : '?',
+                    style: const TextStyle(
+                        color: Color(0xFF1A3C5E),
+                        fontWeight: FontWeight.bold,
+                        fontSize: 11),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          Text(review.displayName,
+                              style: const TextStyle(
+                                  fontWeight: FontWeight.w600, fontSize: 12)),
+                          const Spacer(),
+                          ...List.generate(
+                            5,
+                            (i) => Icon(
+                              i < review.rating ? Icons.star : Icons.star_border,
+                              color: Colors.amber,
+                              size: 11,
+                            ),
+                          ),
+                        ],
+                      ),
+                      if (review.comment != null && review.comment!.isNotEmpty)
+                        Text(
+                          review.comment!,
+                          style: const TextStyle(fontSize: 11, color: Colors.black87),
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          )),
+    ];
   }
 
   @override
@@ -358,6 +437,11 @@ class _PropertyPopupState extends State<PropertyPopup> {
                         }).toList(),
                       ),
                     ],
+                    const SizedBox(height: 12),
+
+                    // Avis (3 premiers)
+                    if (_reviews.isNotEmpty) ..._buildReviewsPreview(),
+
                     const SizedBox(height: 16),
 
                     // Prix + bouton Réserver
