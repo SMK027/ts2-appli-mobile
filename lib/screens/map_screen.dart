@@ -351,6 +351,7 @@ class MapScreenState extends State<MapScreen> {
             options: MapOptions(
               initialCenter: LatLng(_userLat, _userLng),
               initialZoom: 6,
+              minZoom: 4,
               onMapReady: () {
                 _mapReady = true;
                 _mapEventSub = _mapController.mapEventStream.listen((_) {

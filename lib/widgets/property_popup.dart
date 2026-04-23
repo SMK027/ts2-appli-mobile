@@ -55,6 +55,19 @@ class _PropertyPopupState extends State<PropertyPopup> {
     _loadDetail();
   }
 
+  void _openFullscreen(BuildContext context, List<String> photos, int initialIndex) {
+    Navigator.of(context).push(
+      PageRouteBuilder(
+        opaque: false,
+        barrierColor: Colors.black,
+        pageBuilder: (_, __, ___) => _FullscreenGallery(
+          photos: photos,
+          initialIndex: initialIndex,
+        ),
+      ),
+    );
+  }
+
   Future<void> _loadDetail() async {
     final service = ReservationService();
     final results = await Future.wait([
@@ -89,34 +102,39 @@ class _PropertyPopupState extends State<PropertyPopup> {
             // Photo + navigation + bouton fermer + favori
             Stack(
               children: [
-                ClipRRect(
-                  borderRadius:
-                      const BorderRadius.vertical(top: Radius.circular(16)),
-                  child: photoUrl != null
-                      ? CachedNetworkImage(
-                          imageUrl: photoUrl,
-                          height: 180,
-                          width: double.infinity,
-                          fit: BoxFit.cover,
-                          placeholder: (_, url) => Container(
+                GestureDetector(
+                  onTap: allPhotos.isNotEmpty
+                      ? () => _openFullscreen(context, allPhotos, _currentPhotoIndex)
+                      : null,
+                  child: ClipRRect(
+                    borderRadius:
+                        const BorderRadius.vertical(top: Radius.circular(16)),
+                    child: photoUrl != null
+                        ? CachedNetworkImage(
+                            imageUrl: photoUrl,
+                            height: 180,
+                            width: double.infinity,
+                            fit: BoxFit.cover,
+                            placeholder: (_, url) => Container(
+                              height: 180,
+                              color: Colors.grey.shade200,
+                              child: const Center(
+                                  child: CircularProgressIndicator()),
+                            ),
+                            errorWidget: (_, url, err) => Container(
+                              height: 180,
+                              color: Colors.grey.shade200,
+                              child: const Icon(Icons.image_not_supported,
+                                  size: 40, color: Colors.grey),
+                            ),
+                          )
+                        : Container(
                             height: 180,
                             color: Colors.grey.shade200,
-                            child: const Center(
-                                child: CircularProgressIndicator()),
+                            child: const Icon(Icons.home,
+                                size: 48, color: Colors.grey),
                           ),
-                          errorWidget: (_, url, err) => Container(
-                            height: 180,
-                            color: Colors.grey.shade200,
-                            child: const Icon(Icons.image_not_supported,
-                                size: 40, color: Colors.grey),
-                          ),
-                        )
-                      : Container(
-                          height: 180,
-                          color: Colors.grey.shade200,
-                          child: const Icon(Icons.home,
-                              size: 48, color: Colors.grey),
-                        ),
+                  ),
                 ),
                 // Bouton photo précédente
                 if (allPhotos.length > 1)
@@ -387,6 +405,126 @@ class _PropertyPopupState extends State<PropertyPopup> {
               ),
           ],
         ),
+      ),
+    );
+  }
+}
+
+class _FullscreenGallery extends StatefulWidget {
+  final List<String> photos;
+  final int initialIndex;
+
+  const _FullscreenGallery({required this.photos, required this.initialIndex});
+
+  @override
+  State<_FullscreenGallery> createState() => _FullscreenGalleryState();
+}
+
+class _FullscreenGalleryState extends State<_FullscreenGallery> {
+  late final PageController _pageController;
+  late int _currentIndex;
+
+  @override
+  void initState() {
+    super.initState();
+    _currentIndex = widget.initialIndex;
+    _pageController = PageController(initialPage: widget.initialIndex);
+  }
+
+  @override
+  void dispose() {
+    _pageController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: Colors.black,
+      body: Stack(
+        children: [
+          // Galerie swipeable
+          PageView.builder(
+            controller: _pageController,
+            itemCount: widget.photos.length,
+            onPageChanged: (i) => setState(() => _currentIndex = i),
+            itemBuilder: (_, i) {
+              return InteractiveViewer(
+                minScale: 1.0,
+                maxScale: 4.0,
+                child: Center(
+                  child: CachedNetworkImage(
+                    imageUrl: widget.photos[i],
+                    fit: BoxFit.contain,
+                    placeholder: (_, __) => const Center(
+                      child: CircularProgressIndicator(color: Colors.white),
+                    ),
+                    errorWidget: (_, __, ___) => const Icon(
+                      Icons.image_not_supported,
+                      color: Colors.white54,
+                      size: 60,
+                    ),
+                  ),
+                ),
+              );
+            },
+          ),
+
+          // Bouton fermer
+          SafeArea(
+            child: Align(
+              alignment: Alignment.topRight,
+              child: Padding(
+                padding: const EdgeInsets.all(12),
+                child: GestureDetector(
+                  onTap: () => Navigator.of(context).pop(),
+                  child: Container(
+                    padding: const EdgeInsets.all(6),
+                    decoration: BoxDecoration(
+                      color: Colors.black.withAlpha(140),
+                      shape: BoxShape.circle,
+                    ),
+                    child: const Icon(Icons.close, color: Colors.white, size: 22),
+                  ),
+                ),
+              ),
+            ),
+          ),
+
+          // Compteur et points indicateurs
+          if (widget.photos.length > 1)
+            Positioned(
+              bottom: 32,
+              left: 0,
+              right: 0,
+              child: Column(
+                children: [
+                  Text(
+                    '${_currentIndex + 1} / ${widget.photos.length}',
+                    style: const TextStyle(color: Colors.white70, fontSize: 13),
+                  ),
+                  const SizedBox(height: 8),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: List.generate(widget.photos.length, (i) {
+                      return AnimatedContainer(
+                        duration: const Duration(milliseconds: 200),
+                        margin: const EdgeInsets.symmetric(horizontal: 3),
+                        width: i == _currentIndex ? 10 : 6,
+                        height: i == _currentIndex ? 10 : 6,
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle,
+                          color: i == _currentIndex
+                              ? Colors.white
+                              : Colors.white.withAlpha(120),
+                        ),
+                      );
+                    }),
+                  ),
+                ],
+              ),
+            ),
+        ],
       ),
     );
   }
