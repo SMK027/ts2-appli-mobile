@@ -1,7 +1,9 @@
 // Issue #12 - [CF-CARTE] : Carte interactive avec marqueurs de prix des biens
 // Issue #13 - [CF-CARTE] : Filtres par prix et bottom sheet liste des biens
 // Issue #14 - [CF-CARTE] : Popup fiche d'un bien sur la carte avec bouton Réserver
+import 'dart:async';
 import 'dart:io';
+import 'dart:math' show sqrt;
 import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
@@ -12,6 +14,21 @@ import '../services/location_service.dart';
 import '../services/favorite_service.dart';
 import '../widgets/property_popup.dart';
 import 'search_screen.dart';
+
+class _Cluster {
+  final List<Property> properties;
+
+  _Cluster(this.properties);
+
+  int get count => properties.length;
+  bool get isSingle => properties.length == 1;
+
+  LatLng get center {
+    final lat = properties.map((p) => p.latitude!).reduce((a, b) => a + b) / properties.length;
+    final lng = properties.map((p) => p.longitude!).reduce((a, b) => a + b) / properties.length;
+    return LatLng(lat, lng);
+  }
+}
 
 class MapScreen extends StatefulWidget {
   final List<Property>? initialProperties;
@@ -33,6 +50,9 @@ class MapScreenState extends State<MapScreen> {
   double _userLat = 46.603354; // Centre France
   double _userLng = 1.888334;
   bool _hasUserPosition = false;
+  bool _mapReady = false;
+  StreamSubscription<MapEvent>? _mapEventSub;
+  List<_Cluster> _clusters = [];
 
   @override
   void initState() {
@@ -44,6 +64,7 @@ class MapScreenState extends State<MapScreen> {
 
   @override
   void dispose() {
+    _mapEventSub?.cancel();
     super.dispose();
   }
 
@@ -71,6 +92,7 @@ class MapScreenState extends State<MapScreen> {
         _hasUserPosition = true;
       }
     });
+    _recalculateClusters();
   }
 
   void _applyFilter() {
@@ -95,6 +117,92 @@ class MapScreenState extends State<MapScreen> {
       _selectedFilter = filter;
       _applyFilter();
     });
+    _recalculateClusters();
+  }
+
+  List<_Cluster> _buildClusters(List<Property> properties, MapCamera camera) {
+    const double clusterRadiusPx = 50.0;
+    final List<_Cluster> clusters = [];
+    final Set<int> assigned = {};
+
+    for (int i = 0; i < properties.length; i++) {
+      if (assigned.contains(i)) continue;
+      final pi = camera.latLngToScreenPoint(
+        LatLng(properties[i].latitude!, properties[i].longitude!),
+      );
+      final List<Property> group = [properties[i]];
+      assigned.add(i);
+
+      for (int j = i + 1; j < properties.length; j++) {
+        if (assigned.contains(j)) continue;
+        final pj = camera.latLngToScreenPoint(
+          LatLng(properties[j].latitude!, properties[j].longitude!),
+        );
+        final dx = pi.x - pj.x;
+        final dy = pi.y - pj.y;
+        if (sqrt(dx * dx + dy * dy) <= clusterRadiusPx) {
+          group.add(properties[j]);
+          assigned.add(j);
+        }
+      }
+
+      clusters.add(_Cluster(group));
+    }
+
+    return clusters;
+  }
+
+  void _recalculateClusters() {
+    if (!mounted || !_mapReady) return;
+    try {
+      final camera = _mapController.camera;
+      final newClusters = _buildClusters(_filteredProperties, camera);
+      setState(() => _clusters = newClusters);
+    } catch (_) {}
+  }
+
+  Widget _buildSingleMarker() {
+    return Container(
+      decoration: BoxDecoration(
+        color: const Color(0xFF1A3C5E),
+        shape: BoxShape.circle,
+        border: Border.all(color: Colors.white, width: 2),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withAlpha(60),
+            blurRadius: 4,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildClusterMarker(int count) {
+    return Container(
+      decoration: BoxDecoration(
+        color: const Color(0xFF1A3C5E),
+        shape: BoxShape.circle,
+        border: Border.all(color: Colors.white, width: 2.5),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withAlpha(70),
+            blurRadius: 6,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: Center(
+        child: Text(
+          '$count',
+          style: const TextStyle(
+            color: Colors.white,
+            fontWeight: FontWeight.bold,
+            fontSize: 13,
+          ),
+        ),
+      ),
+    );
   }
 
   void _centerOnUser() {
@@ -243,6 +351,13 @@ class MapScreenState extends State<MapScreen> {
             options: MapOptions(
               initialCenter: LatLng(_userLat, _userLng),
               initialZoom: 6,
+              onMapReady: () {
+                _mapReady = true;
+                _mapEventSub = _mapController.mapEventStream.listen((_) {
+                  _recalculateClusters();
+                });
+                _recalculateClusters();
+              },
             ),
             children: [
               TileLayer(
@@ -271,28 +386,29 @@ class MapScreenState extends State<MapScreen> {
                         ),
                       ),
                     ),
-                  ..._filteredProperties.map((p) => Marker(
-                        point: LatLng(p.latitude!, p.longitude!),
-                        width: 20,
-                        height: 20,
-                        child: GestureDetector(
-                          onTap: () => _showPropertyPopup(p),
-                          child: Container(
-                            decoration: BoxDecoration(
-                              color: const Color(0xFF1A3C5E),
-                              shape: BoxShape.circle,
-                              border: Border.all(color: Colors.white, width: 2),
-                              boxShadow: [
-                                BoxShadow(
-                                  color: Colors.black.withAlpha(60),
-                                  blurRadius: 4,
-                                  offset: const Offset(0, 2),
-                                ),
-                              ],
-                            ),
-                          ),
-                        ),
-                      )),
+                  ..._clusters.map((cluster) {
+                    final double size = cluster.isSingle ? 20 : (cluster.count >= 10 ? 44 : 36);
+                    return Marker(
+                      point: cluster.center,
+                      width: size,
+                      height: size,
+                      child: GestureDetector(
+                        onTap: () {
+                          if (cluster.isSingle) {
+                            _showPropertyPopup(cluster.properties.first);
+                          } else {
+                            _mapController.move(
+                              cluster.center,
+                              _mapController.camera.zoom + 2,
+                            );
+                          }
+                        },
+                        child: cluster.isSingle
+                            ? _buildSingleMarker()
+                            : _buildClusterMarker(cluster.count),
+                      ),
+                    );
+                  }),
                 ],
               ),
             ],

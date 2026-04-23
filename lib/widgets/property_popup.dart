@@ -33,6 +33,7 @@ class _PropertyPopupState extends State<PropertyPopup> {
   Property? _detail;
   List<String> _photos = [];
   bool _loading = true;
+  int _currentPhotoIndex = 0;
 
   double? _distanceToPropertyKm(Property p) {
     if (p.distanceKm != null) return p.distanceKm;
@@ -73,8 +74,10 @@ class _PropertyPopupState extends State<PropertyPopup> {
     final p = _detail ?? widget.property;
     final distanceKm = _distanceToPropertyKm(p);
     final isFav = FavoriteService().isFavorite(p.id);
-    final photoUrl =
-        _photos.isNotEmpty ? _photos.first : p.photoUrl;
+    final allPhotos = _photos.isNotEmpty
+        ? _photos
+        : (p.photoUrl != null ? [p.photoUrl!] : <String>[]);
+    final photoUrl = allPhotos.isNotEmpty ? allPhotos[_currentPhotoIndex] : null;
 
     return Dialog(
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
@@ -83,7 +86,7 @@ class _PropertyPopupState extends State<PropertyPopup> {
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            // Photo + bouton fermer + favori
+            // Photo + navigation + bouton fermer + favori
             Stack(
               children: [
                 ClipRRect(
@@ -115,6 +118,79 @@ class _PropertyPopupState extends State<PropertyPopup> {
                               size: 48, color: Colors.grey),
                         ),
                 ),
+                // Bouton photo précédente
+                if (allPhotos.length > 1)
+                  Positioned(
+                    left: 8,
+                    top: 0,
+                    bottom: 0,
+                    child: Center(
+                      child: GestureDetector(
+                        onTap: () => setState(() {
+                          _currentPhotoIndex =
+                              (_currentPhotoIndex - 1 + allPhotos.length) %
+                              allPhotos.length;
+                        }),
+                        child: Container(
+                          padding: const EdgeInsets.all(4),
+                          decoration: BoxDecoration(
+                            color: Colors.black.withAlpha(100),
+                            shape: BoxShape.circle,
+                          ),
+                          child: const Icon(Icons.chevron_left,
+                              color: Colors.white, size: 24),
+                        ),
+                      ),
+                    ),
+                  ),
+                // Bouton photo suivante
+                if (allPhotos.length > 1)
+                  Positioned(
+                    right: 8,
+                    top: 0,
+                    bottom: 0,
+                    child: Center(
+                      child: GestureDetector(
+                        onTap: () => setState(() {
+                          _currentPhotoIndex =
+                              (_currentPhotoIndex + 1) % allPhotos.length;
+                        }),
+                        child: Container(
+                          padding: const EdgeInsets.all(4),
+                          decoration: BoxDecoration(
+                            color: Colors.black.withAlpha(100),
+                            shape: BoxShape.circle,
+                          ),
+                          child: const Icon(Icons.chevron_right,
+                              color: Colors.white, size: 24),
+                        ),
+                      ),
+                    ),
+                  ),
+                // Points indicateurs
+                if (allPhotos.length > 1)
+                  Positioned(
+                    bottom: 8,
+                    left: 0,
+                    right: 0,
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: List.generate(allPhotos.length, (i) {
+                        return AnimatedContainer(
+                          duration: const Duration(milliseconds: 200),
+                          margin: const EdgeInsets.symmetric(horizontal: 3),
+                          width: i == _currentPhotoIndex ? 10 : 6,
+                          height: i == _currentPhotoIndex ? 10 : 6,
+                          decoration: BoxDecoration(
+                            shape: BoxShape.circle,
+                            color: i == _currentPhotoIndex
+                                ? Colors.white
+                                : Colors.white.withAlpha(140),
+                          ),
+                        );
+                      }),
+                    ),
+                  ),
                 // Bouton fermer
                 Positioned(
                   top: 8,
