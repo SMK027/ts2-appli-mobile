@@ -35,6 +35,8 @@ class _BookingScreenState extends State<BookingScreen> {
   String? _error;
 
   List<Map<String, dynamic>> _tarifs = [];
+  List<Map<String, dynamic>> _blocages = [];
+  List<Map<String, dynamic>> _reservationsConflit = [];
   int? _selectedTarifId;
   double _tarifParSemaine = 0;
   double _fraisService = 0;
@@ -73,6 +75,7 @@ class _BookingScreenState extends State<BookingScreen> {
     final results = await Future.wait([
       service.getPropertyTarifs(widget.property.id),
       service.getPropertyPhotos(widget.property.id),
+      service.getPropertyBlocages(widget.property.id),
     ]);
 
     if (!mounted) return;
@@ -80,6 +83,7 @@ class _BookingScreenState extends State<BookingScreen> {
     setState(() {
       _photoUrl = photos.isNotEmpty ? photos.first : widget.property.photoUrl;
       _tarifs = results[0] as List<Map<String, dynamic>>;
+      _blocages = results[2] as List<Map<String, dynamic>>;
       if (_tarifs.isNotEmpty) {
         _selectedTarifId = _tarifs.first['id_tarif'] is int
             ? _tarifs.first['id_tarif'] as int
@@ -127,8 +131,102 @@ class _BookingScreenState extends State<BookingScreen> {
     _montantTotal = logement + _fraisService;
   }
 
+  /// Calcule le numéro de semaine ISO 8601 et l'année ISO correspondante.
+  /// L'année ISO peut différer de l'année calendaire en début/fin d'année.
+  (int weekYear, int weekNumber) _isoWeek(DateTime d) {
+    // Le jeudi de la semaine détermine l'année ISO (règle ISO 8601)
+    final thursday = d.add(Duration(days: 4 - d.weekday));
+    final firstDayOfYear = DateTime(thursday.year, 1, 1);
+    final weekNum =
+        ((thursday.difference(firstDayOfYear).inDays) / 7).floor() + 1;
+    return (thursday.year, weekNum);
+  }
+
+  /// Retourne true si le jour doit être désactivé dans le sélecteur de dates :
+  /// - couvert par un blocage admin
+  /// - déjà réservé par un autre utilisateur
+  /// - aucun tarif défini pour la semaine ISO de ce jour
+  bool _isDayBlocked(DateTime day) {
+    final d = DateTime(day.year, day.month, day.day);
+
+    // 1. Vérification des blocages (réservés par l'admin)
+    for (final b in _blocages) {
+      final debutStr =
+          (b['date_debut_blocage'] ?? b['date_debut'])?.toString();
+      final finStr = (b['date_fin_blocage'] ?? b['date_fin'])?.toString();
+      if (debutStr == null || finStr == null) continue;
+      final debut = DateTime.tryParse(debutStr);
+      final fin = DateTime.tryParse(finStr);
+      if (debut == null || fin == null) continue;
+      final debOnly = DateTime(debut.year, debut.month, debut.day);
+      final finOnly = DateTime(fin.year, fin.month, fin.day);
+      if (!d.isBefore(debOnly) && !d.isAfter(finOnly)) return true;
+    }
+
+    // 2. Déjà réservé par un autre utilisateur
+    for (final r in _reservationsConflit) {
+      final debutStr = r['date_debut']?.toString();
+      final finStr = r['date_fin']?.toString();
+      if (debutStr == null || finStr == null) continue;
+      final debut = DateTime.tryParse(debutStr);
+      final fin = DateTime.tryParse(finStr);
+      if (debut == null || fin == null) continue;
+      final debOnly = DateTime(debut.year, debut.month, debut.day);
+      final finOnly = DateTime(fin.year, fin.month, fin.day);
+      if (!d.isBefore(debOnly) && !d.isAfter(finOnly)) return true;
+    }
+
+    // 3. Aucun tarif défini pour la semaine ISO de ce jour
+    if (_tarifs.isNotEmpty) {
+      final (weekYear, weekNum) = _isoWeek(d);
+      final hasTarif = _tarifs.any((t) {
+        final annee = int.tryParse(t['annee_tarif']?.toString() ?? '');
+        final semaine = int.tryParse(t['semaine_tarif']?.toString() ?? '');
+        return annee == weekYear && semaine == weekNum;
+      });
+      if (!hasTarif) return true;
+    }
+
+    return false;
+  }
+
   Future<void> _selectDates() async {
+    // Charger les indisponibilités (réservations existantes) avant d'ouvrir le picker
     final now = DateTime.now();
+    setState(() {
+      _checkingAvailability = true;
+      _error = null;
+    });
+    try {
+      final response = await ApiService().client.get(
+        '${ApiConfig.biensEndpoint}/${widget.property.id}/disponibilite',
+        queryParameters: {
+          'date_debut': DateFormat('yyyy-MM-dd').format(now),
+          'date_fin': DateFormat('yyyy-MM-dd')
+              .format(now.add(const Duration(days: 365))),
+        },
+      );
+      if (!mounted) return;
+      final data = response.data as Map<String, dynamic>;
+      setState(() {
+        _checkingAvailability = false;
+        _reservationsConflit =
+            (data['reservations_conflit'] as List? ?? [])
+                .cast<Map<String, dynamic>>();
+        // Rafraîchir aussi les blocages depuis la réponse
+        final blocagesApi =
+            (data['blocages_conflit'] as List? ?? [])
+                .cast<Map<String, dynamic>>();
+        if (blocagesApi.isNotEmpty) _blocages = blocagesApi;
+      });
+    } on DioException catch (_) {
+      // En cas d'erreur réseau, on ouvre quand même le picker avec les données locales
+      if (!mounted) return;
+      setState(() => _checkingAvailability = false);
+    }
+
+    if (!mounted) return;
+
     final picked = await showDateRangePicker(
       context: context,
       firstDate: now,
@@ -136,6 +234,7 @@ class _BookingScreenState extends State<BookingScreen> {
       initialDateRange: _startDate != null && _endDate != null
           ? DateTimeRange(start: _startDate!, end: _endDate!)
           : null,
+      selectableDayPredicate: (day, start, end) => !_isDayBlocked(day),
       helpText: 'Sélectionnez la période',
       saveText: 'Valider',
       locale: const Locale('fr', 'FR'),
@@ -534,8 +633,14 @@ class _BookingScreenState extends State<BookingScreen> {
                         fontWeight: FontWeight.w600)),
               const SizedBox(height: 8),
               OutlinedButton.icon(
-                onPressed: _selectDates,
-                icon: const Icon(Icons.calendar_today, size: 16),
+                onPressed: _checkingAvailability ? null : _selectDates,
+                icon: _checkingAvailability
+                    ? const SizedBox(
+                        width: 16,
+                        height: 16,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      )
+                    : const Icon(Icons.calendar_today, size: 16),
                 label: const Text('Modifier les dates'),
                 style: OutlinedButton.styleFrom(
                   foregroundColor: Theme.of(context).colorScheme.primary,
