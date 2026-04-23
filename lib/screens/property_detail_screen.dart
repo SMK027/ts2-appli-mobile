@@ -174,7 +174,7 @@ class _PropertyDetailScreenState extends State<PropertyDetailScreen> {
             const SizedBox(height: 8),
             Text(
               review.comment!,
-              style: const TextStyle(fontSize: 13, color: Colors.black87),
+              style: TextStyle(fontSize: 13, color: Theme.of(context).colorScheme.onSurface),
             ),
           ],
         ],

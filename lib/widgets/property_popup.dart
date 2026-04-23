@@ -148,7 +148,7 @@ class _PropertyPopupState extends State<PropertyPopup> {
                       if (review.comment != null && review.comment!.isNotEmpty)
                         Text(
                           review.comment!,
-                          style: const TextStyle(fontSize: 11, color: Colors.black87),
+                          style: TextStyle(fontSize: 11, color: Theme.of(context).colorScheme.onSurface),
                           maxLines: 2,
                           overflow: TextOverflow.ellipsis,
                         ),
