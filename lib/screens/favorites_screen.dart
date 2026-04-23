@@ -210,7 +210,7 @@ class FavoritesScreenState extends State<FavoritesScreen> {
                     const SizedBox(height: 6),
                     if (p.prixNuit != null)
                       Text(
-                        '${p.prixNuit!.toStringAsFixed(0)} €/sem',
+                        '${p.prixNuit!.toStringAsFixed(0)} €/nuit',
                         style: TextStyle(
                           fontWeight: FontWeight.bold,
                           fontSize: 14,

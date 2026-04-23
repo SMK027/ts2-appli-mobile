@@ -1,9 +1,11 @@
 // Issue #12 - [CF-CARTE] : Carte interactive avec marqueurs de prix des biens
 // Issue #13 - [CF-CARTE] : Filtres par prix et bottom sheet liste des biens
 // Issue #14 - [CF-CARTE] : Popup fiche d'un bien sur la carte avec bouton Réserver
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
+import 'package:url_launcher/url_launcher.dart';
 import '../models/property.dart';
 import '../services/property_service.dart';
 import '../services/location_service.dart';
@@ -28,7 +30,8 @@ class MapScreenState extends State<MapScreen> {
   List<Property> _filteredProperties = [];
   String _selectedFilter = 'Tous';
   bool _loading = true;
-  LatLng _userPosition = const LatLng(46.603354, 1.888334); // Centre France
+  double _userLat = 46.603354; // Centre France
+  double _userLng = 1.888334;
   bool _hasUserPosition = false;
 
   @override
@@ -63,7 +66,8 @@ class MapScreenState extends State<MapScreen> {
       _loading = false;
 
       if (position != null) {
-        _userPosition = LatLng(position.latitude, position.longitude);
+        _userLat = position.latitude;
+        _userLng = position.longitude;
         _hasUserPosition = true;
       }
     });
@@ -95,7 +99,7 @@ class MapScreenState extends State<MapScreen> {
 
   void _centerOnUser() {
     if (_hasUserPosition) {
-      _mapController.move(_userPosition, 13);
+      _mapController.move(LatLng(_userLat, _userLng), 13);
     }
   }
 
@@ -106,8 +110,8 @@ class MapScreenState extends State<MapScreen> {
         property: property,
         dateDebut: widget.dateDebut,
         dateFin: widget.dateFin,
-        userLatitude: _hasUserPosition ? _userPosition.latitude : null,
-        userLongitude: _hasUserPosition ? _userPosition.longitude : null,
+        userLatitude: _hasUserPosition ? _userLat : null,
+        userLongitude: _hasUserPosition ? _userLng : null,
       ),
     );
   }
@@ -186,9 +190,27 @@ class MapScreenState extends State<MapScreen> {
         mainAxisSize: MainAxisSize.min,
         children: [
           if (p.prixNuit != null)
-            Text('${p.prixNuit!.toStringAsFixed(0)} €',
+            Text('${p.prixNuit!.toStringAsFixed(0)} €/nuit',
                 style: const TextStyle(
                     fontWeight: FontWeight.bold)),
+          const SizedBox(width: 4),
+          GestureDetector(
+            onTap: () async {
+              final double targetLat = p.latitude!;
+              final double targetLng = p.longitude!;
+              final String encodedLabel = Uri.encodeComponent(p.name);
+              final Uri uri;
+              if (Platform.isIOS) {
+                uri = Uri.parse('https://maps.apple.com/?ll=$targetLat,$targetLng&q=$encodedLabel');
+              } else if (Platform.isAndroid) {
+                uri = Uri.parse('geo:$targetLat,$targetLng?q=$targetLat,$targetLng($encodedLabel)');
+              } else {
+                uri = Uri.parse('https://www.google.com/maps/search/?api=1&query=$targetLat,$targetLng');
+              }
+              await launchUrl(uri, mode: LaunchMode.externalApplication);
+            },
+            child: const Icon(Icons.directions, color: Color(0xFF1A3C5E), size: 20),
+          ),
           const SizedBox(width: 4),
           GestureDetector(
             onTap: () {
@@ -203,7 +225,7 @@ class MapScreenState extends State<MapScreen> {
         ],
       ),
       onTap: () {
-        Navigator.of(context).pop(); // Ferme le bottom sheet
+        Navigator.of(context).pop();
         _mapController.move(LatLng(p.latitude!, p.longitude!), 15);
         _showPropertyPopup(p);
       },
@@ -215,11 +237,11 @@ class MapScreenState extends State<MapScreen> {
     return Scaffold(
       body: Stack(
         children: [
-          // Carte
+          // Carte OpenStreetMap via flutter_map (sans clé API)
           FlutterMap(
             mapController: _mapController,
             options: MapOptions(
-              initialCenter: _userPosition,
+              initialCenter: LatLng(_userLat, _userLng),
               initialZoom: 6,
             ),
             children: [
@@ -229,10 +251,9 @@ class MapScreenState extends State<MapScreen> {
               ),
               MarkerLayer(
                 markers: [
-                  // Position utilisateur
                   if (_hasUserPosition)
                     Marker(
-                      point: _userPosition,
+                      point: LatLng(_userLat, _userLng),
                       width: 24,
                       height: 24,
                       child: Container(
@@ -250,37 +271,24 @@ class MapScreenState extends State<MapScreen> {
                         ),
                       ),
                     ),
-                  // Marqueurs des biens avec prix
                   ..._filteredProperties.map((p) => Marker(
                         point: LatLng(p.latitude!, p.longitude!),
-                        width: 90,
-                        height: 32,
+                        width: 20,
+                        height: 20,
                         child: GestureDetector(
                           onTap: () => _showPropertyPopup(p),
                           child: Container(
-                            padding: const EdgeInsets.symmetric(
-                                horizontal: 8, vertical: 4),
                             decoration: BoxDecoration(
                               color: const Color(0xFF1A3C5E),
-                              borderRadius: BorderRadius.circular(16),
+                              shape: BoxShape.circle,
+                              border: Border.all(color: Colors.white, width: 2),
                               boxShadow: [
                                 BoxShadow(
-                                  color: Colors.black.withAlpha(40),
+                                  color: Colors.black.withAlpha(60),
                                   blurRadius: 4,
                                   offset: const Offset(0, 2),
                                 ),
                               ],
-                            ),
-                            child: Text(
-                              p.prixNuit != null
-                                  ? '${p.prixNuit!.toStringAsFixed(0)} €/sem'
-                                  : '—',
-                              textAlign: TextAlign.center,
-                              style: const TextStyle(
-                                color: Colors.white,
-                                fontSize: 12,
-                                fontWeight: FontWeight.bold,
-                              ),
                             ),
                           ),
                         ),
@@ -412,7 +420,7 @@ class MapScreenState extends State<MapScreen> {
             ),
           ),
 
-          // Bouton géolocalisation (Issue #12)
+          // Bouton géolocalisation
           Positioned(
             bottom: 100,
             right: 16,

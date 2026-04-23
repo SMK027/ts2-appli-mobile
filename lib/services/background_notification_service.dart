@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:io';
 
 import 'package:dio/dio.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
@@ -16,6 +17,9 @@ class BackgroundNotificationService {
   static const FlutterSecureStorage _storage = FlutterSecureStorage();
 
   static Future<void> initialize() async {
+    // workmanager ne supporte que Android et iOS
+    if (!Platform.isAndroid && !Platform.isIOS) return;
+
     await Workmanager().initialize(
       callbackDispatcher,
       isInDebugMode: false,

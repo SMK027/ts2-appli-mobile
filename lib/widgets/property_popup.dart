@@ -272,7 +272,7 @@ class _PropertyPopupState extends State<PropertyPopup> {
                       children: [
                         if (p.prixNuit != null)
                           Text(
-                            '${p.prixNuit!.toStringAsFixed(0)} €/sem.',
+                            '${p.prixNuit!.toStringAsFixed(0)} €/nuit',
                             style: TextStyle(
                               fontWeight: FontWeight.bold,
                               fontSize: 18,
