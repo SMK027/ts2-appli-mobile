@@ -247,6 +247,26 @@ Si le bien est indisponible, `disponible` vaut `false` et les tableaux contienne
 
 Recherche par nom ou code postal : `GET /nestvia/communes?search=mont`
 
+### Prestations
+
+| Méthode | Route | Description |
+|---------|-------|-------------|
+| GET | `/nestvia/prestations` | Liste de toutes les prestations disponibles |
+
+Réponse type :
+
+```json
+[
+  { "id_prestation": 1, "libelle_prestation": "Wi-Fi" },
+  { "id_prestation": 2, "libelle_prestation": "Parking" },
+  { "id_prestation": 3, "libelle_prestation": "Cuisine équipée" }
+]
+```
+
+Cette liste alimente les chips de filtrage de l'écran de recherche avancée. Les `id_prestation` sélectionnés sont ensuite envoyés au paramètre `prestations` de `GET /nestvia/biens` (voir ci-dessus).
+
+> **Sémantique du filtre `prestations`** : la liste d'IDs est traitée en **ET logique** — un bien n'est retourné que s'il propose **toutes** les prestations demandées. Exemple : `?prestations=1,3` ne retourne que les biens qui possèdent à la fois la prestation `1` **et** la prestation `3`. Pour obtenir les biens qui possèdent l'une **ou** l'autre, il faut effectuer plusieurs requêtes côté client et fusionner les résultats.
+
 ### Compte
 
 | Méthode | Route | Description |

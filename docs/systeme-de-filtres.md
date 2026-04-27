@@ -24,6 +24,7 @@ L'application Nestvia propose un système de filtrage à trois niveaux :
 | Animaux acceptés   | Dropdown                   | `animaux`          | `null` (Tous), `oui`, `non`              |
 | Tarif minimum      | Champ texte (numérique)    | `tarif_min`        | Nombre décimal (€)                        |
 | Tarif maximum      | Champ texte (numérique)    | `tarif_max`        | Nombre décimal (€)                        |
+| Prestations incluses | Chips multi-sélection      | `prestations`      | Liste d'IDs séparés par virgule (CSV)     |
 | Date d'arrivée     | DatePicker                 | `date_debut`       | Date ISO 8601 (YYYY-MM-DD)               |
 | Date de départ     | DatePicker                 | `date_fin`         | Date ISO 8601 (YYYY-MM-DD)               |
 
@@ -65,6 +66,27 @@ L'application Nestvia propose un système de filtrage à trois niveaux :
 - Requête : `GET /types-bien` (chargement complet, filtrage côté client)
 - Réponse : liste d'objets `{ "id_typebien": int, "des_typebien": string }`
 - Filtrage local par `contains()` sur le texte saisi
+
+#### Prestations incluses (chips multi-sélection)
+
+- Requête : `GET /prestations` (chargée une fois à l'ouverture de l'écran)
+- Réponse : liste d'objets `{ "id_prestation": int, "libelle_prestation": string }`
+- Affichage : un `FilterChip` par prestation, icône déduite automatiquement du libellé (`_prestationIcon`)
+- Les IDs sélectionnés sont stockés dans `SearchFilterService.selectedPrestationIds` (`Set<int>`)
+- À la soumission, ils sont concaténés en CSV : `?prestations=1,3,5`
+
+> **Sémantique du filtre `prestations` (ET logique — « toutes incluses »)** :
+> Le serveur ne retourne que les biens qui possèdent **toutes** les prestations
+> demandées. Plus l'utilisateur coche de chips, plus la liste se restreint.
+>
+> - `?prestations=1` → biens qui ont la prestation 1
+> - `?prestations=1,3` → biens qui ont **à la fois** la prestation 1 **et** la 3
+> - `?prestations=1,3,5` → biens qui ont 1 **et** 3 **et** 5
+>
+> Pour obtenir une recherche en « OU » (n'importe laquelle des prestations
+> cochées), il faudrait effectuer plusieurs requêtes et fusionner les résultats
+> côté client. Cette logique n'est pas implémentée (le comportement actuel
+> correspond au besoin fonctionnel : « je veux un bien qui a Wi-Fi **et** parking »).
 
 #### Vérification de disponibilité
 
@@ -145,6 +167,7 @@ Future<List<Property>> searchProperties({
   String? animaux,
   double? tarifMin,
   double? tarifMax,
+  List<int>? prestationsIds,
 })
 ```
 

@@ -283,20 +283,41 @@ Authorization: Bearer eyJ...
 3. Les résultats sont filtrés localement selon la saisie de l'utilisateur.
 4. L'ID du type de bien est mémorisé pour la requête de recherche.
 
-#### 5.3 — Soumission de la recherche
+#### 5.3 — Récupération des prestations (chips multi-sélection)
 
-1. L'utilisateur configure les filtres (commune, type de bien, nb de couchages, animaux, fourchette de tarif, dates de séjour) et clique sur **« Rechercher »**.
-2. L'application combine les filtres actifs et effectue un appel `GET /nestvia/biens` avec les paramètres correspondants.
+À l'ouverture de l'écran de recherche, l'application charge **une seule fois** la liste complète des prestations afin d'alimenter les chips de filtrage.
 
 ```
-GET /nestvia/biens?commune=30438&type_bien=2&nb_personnes=4&animaux=oui&tarif_min=100&tarif_max=500
+GET /nestvia/prestations
+Authorization: Bearer eyJ...
+  → 200 : [
+      { "id_prestation": 1, "libelle_prestation": "Wi-Fi" },
+      { "id_prestation": 2, "libelle_prestation": "Parking" },
+      { "id_prestation": 3, "libelle_prestation": "Cuisine équipée" },
+      ...
+    ]
+```
+
+1. La réponse alimente une rangée de `FilterChip` à sélection multiple.
+2. Chaque libellé est associé à une icône déduite du texte (`_prestationIcon` dans `SearchScreen`).
+3. Les `id_prestation` cochés sont mémorisés dans `SearchFilterService.selectedPrestationIds` (persistant entre écrans tant que l'utilisateur ne réinitialise pas).
+
+#### 5.4 — Soumission de la recherche
+
+1. L'utilisateur configure les filtres (commune, type de bien, nb de couchages, animaux, fourchette de tarif, prestations, dates de séjour) et clique sur **« Appliquer les filtres »**.
+2. L'application combine les filtres actifs et effectue un appel `GET /nestvia/biens` avec les paramètres correspondants. Les IDs de prestations sélectionnés sont concaténés en CSV dans le paramètre `prestations`.
+
+```
+GET /nestvia/biens?commune=30438&type_bien=2&nb_personnes=4&animaux=oui&tarif_min=100&tarif_max=500&prestations=1,3,5
 Authorization: Bearer eyJ...
   → 200 : [ { id_bien: 5, nom_bien: "Villa Soleil", ... }, ... ]
 ```
 
+> **Comportement du filtre `prestations` (ET logique)** : le serveur ne retourne que les biens qui possèdent **toutes** les prestations demandées. Avec `?prestations=1,3,5`, un bien doit proposer simultanément les prestations 1, 3 **et** 5 pour figurer dans les résultats. Plus l'utilisateur coche de chips, plus la liste se restreint.
+
 3. Les biens reçus sont enrichis (photos + tarifs) via des appels individuels `GET /biens/:id/photos` et `GET /biens/:id/tarifs` pour chaque bien.
 
-#### 5.4 — Filtrage par disponibilité (si dates de séjour renseignées)
+#### 5.5 — Filtrage par disponibilité (si dates de séjour renseignées)
 
 4. Si l'utilisateur a renseigné des dates de séjour, l'application effectue un appel `GET /nestvia/biens/:id/disponibilite` **pour chaque bien** des résultats :
 
@@ -774,6 +795,7 @@ Champs modifiables côté API : `nom_locataire`, `prenom_locataire`, `dna_locata
 | `POST` | `/nestvia/biens/:id/avis` | Oui | ReviewDialog (NotificationsScreen) | Création d'un avis (rating + commentaire) |
 | `GET` | `/nestvia/communes` | Oui | SearchScreen | Recherche de communes (autocomplétion) |
 | `GET` | `/nestvia/types-bien` | Oui | HomeScreen, SearchScreen | Liste des types de biens |
+| `GET` | `/nestvia/prestations` | Oui | SearchScreen | Liste des prestations (chips de filtrage) |
 | `GET` | `/nestvia/favoris` | Oui | HomeScreen, FavoritesScreen | Liste des favoris de l'utilisateur |
 | `POST` | `/nestvia/favoris` | Oui | HomeScreen, MapScreen, FavoritesScreen | Ajout d'un bien aux favoris |
 | `DELETE` | `/nestvia/favoris/:id_bien` | Oui | HomeScreen, MapScreen, FavoritesScreen | Suppression d'un favori |
