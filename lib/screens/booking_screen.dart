@@ -39,7 +39,6 @@ class _BookingScreenState extends State<BookingScreen> {
   List<Map<String, dynamic>> _reservationsConflit = [];
   int? _selectedTarifId;
   double _tarifParSemaine = 0;
-  double _fraisService = 0;
   double _montantTotal = 0;
   String? _photoUrl;
 
@@ -103,11 +102,7 @@ class _BookingScreenState extends State<BookingScreen> {
     return _endDate!.difference(_startDate!).inDays;
   }
 
-  int get _nbSemaines {
-    final days = _nbNuits;
-    if (days <= 0) return 0;
-    return (days / 7).ceil();
-  }
+  double get _tarifParNuit => _tarifParSemaine / 7;
 
   void _calculateTotal() {
     // Chercher le tarif correspondant à la période
@@ -126,9 +121,7 @@ class _BookingScreenState extends State<BookingScreen> {
       }
     }
 
-    final logement = _nbSemaines * _tarifParSemaine;
-    _fraisService = logement * 0.05; // 5% frais de service
-    _montantTotal = logement + _fraisService;
+    _montantTotal = _nbNuits * _tarifParNuit;
   }
 
   /// Calcule le numéro de semaine ISO 8601 et l'année ISO correspondante.
@@ -667,13 +660,8 @@ class _BookingScreenState extends State<BookingScreen> {
 
         _buildRecapRow(
           'Logement',
-          '$_nbSemaines sem. × ${_tarifParSemaine.toStringAsFixed(0)} €',
-          (_nbSemaines * _tarifParSemaine),
-        ),
-        _buildRecapRow(
-          'Frais de service',
-          '5%',
-          _fraisService,
+          '$_nbNuits nuit${_nbNuits > 1 ? 's' : ''} × ${_tarifParNuit.toStringAsFixed(0)} €',
+          _nbNuits * _tarifParNuit,
         ),
         const Divider(height: 24),
         _buildRecapRow(

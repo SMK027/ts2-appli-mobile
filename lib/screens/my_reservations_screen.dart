@@ -273,6 +273,22 @@ class _MyReservationsScreenState extends State<MyReservationsScreen> {
     await _loadReservations();
   }
 
+  /// Calcule le montant exact facturé à la nuit (tarif hebdo / 7 × nb nuits).
+  /// Le backend retourne un `montant_total` calculé à la semaine entière ;
+  /// on recalcule côté client pour afficher le coût réel au prorata des nuits.
+  double? _computeMontant(Map<String, dynamic> r) {
+    final tarifSemaine = double.tryParse(r['tarif']?.toString() ?? '');
+    final debut = DateTime.tryParse(r['date_debut']?.toString() ?? '');
+    final fin = DateTime.tryParse(r['date_fin']?.toString() ?? '');
+    if (tarifSemaine != null && debut != null && fin != null) {
+      final nuits = fin.difference(debut).inDays;
+      if (nuits > 0) return (tarifSemaine / 7) * nuits;
+    }
+    final fallback = r['montant_total'];
+    if (fallback == null) return null;
+    return double.tryParse(fallback.toString());
+  }
+
   Widget _buildReservationCard(Map<String, dynamic> r) {
     final status = _getStatus(r);
     final canCancel = status == 'a_venir' || status == 'en_cours';
@@ -282,10 +298,8 @@ class _MyReservationsScreenState extends State<MyReservationsScreen> {
     final commune = r['nom_commune']?.toString() ?? r['com_bien']?.toString() ?? '';
     final debut = _formatDate(r['date_debut']?.toString());
     final fin = _formatDate(r['date_fin']?.toString());
-    final montant = r['montant_total'];
-    final montantStr = montant != null
-        ? '${double.tryParse(montant.toString())?.toStringAsFixed(2) ?? montant} €'
-        : '';
+    final montant = _computeMontant(r);
+    final montantStr = montant != null ? '${montant.toStringAsFixed(2)} €' : '';
 
     return Card(
       margin: const EdgeInsets.only(bottom: 12),
@@ -407,10 +421,15 @@ class _MyReservationsScreenState extends State<MyReservationsScreen> {
     final nomBien = r['nom_bien']?.toString() ?? 'Bien';
     final debut = _formatDate(r['date_debut']?.toString());
     final fin = _formatDate(r['date_fin']?.toString());
-    final montant = r['montant_total'];
+    final montant = _computeMontant(r);
     final tarif = r['tarif'];
     final saison = r['libelle_saison']?.toString();
     final commune = r['nom_commune']?.toString() ?? r['com_bien']?.toString() ?? '';
+    final dDebut = DateTime.tryParse(r['date_debut']?.toString() ?? '');
+    final dFin = DateTime.tryParse(r['date_fin']?.toString() ?? '');
+    final nbNuits = (dDebut != null && dFin != null)
+        ? dFin.difference(dDebut).inDays
+        : 0;
 
     showModalBottomSheet(
       context: context,
@@ -448,13 +467,15 @@ class _MyReservationsScreenState extends State<MyReservationsScreen> {
                   style: TextStyle(color: Colors.grey.shade600)),
             const SizedBox(height: 16),
             _detailRow('Dates', '$debut → $fin'),
+            if (nbNuits > 0)
+              _detailRow('Nombre de nuits', '$nbNuits'),
             if (saison != null) _detailRow('Saison', saison),
             if (tarif != null)
               _detailRow('Tarif semaine', '$tarif €'),
             if (montant != null)
               _detailRow(
                 'Montant total',
-                '${double.tryParse(montant.toString())?.toStringAsFixed(2) ?? montant} €',
+                '${montant.toStringAsFixed(2)} €',
                 bold: true,
               ),
             const SizedBox(height: 16),
