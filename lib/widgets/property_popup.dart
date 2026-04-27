@@ -37,6 +37,8 @@ class _PropertyPopupState extends State<PropertyPopup> {
   List<Review> _reviews = [];
   bool _loading = true;
   int _currentPhotoIndex = 0;
+  double? _tarifNuitSemaineEnCours;
+  bool _tarifIsFallback = false;
 
   double? _distanceToPropertyKm(Property p) {
     if (p.distanceKm != null) return p.distanceKm;
@@ -77,14 +79,53 @@ class _PropertyPopupState extends State<PropertyPopup> {
       service.getPropertyDetail(widget.property.id),
       service.getPropertyPhotos(widget.property.id),
       service.getPropertyReviews(widget.property.id),
+      service.getPropertyTarifs(widget.property.id),
     ]);
     if (!mounted) return;
+    final tarifs = results[3] as List<Map<String, dynamic>>;
+    final (tarifNuit, isFallback) = _resolveTarifNuit(tarifs);
     setState(() {
       _detail = results[0] as Property?;
       _photos = results[1] as List<String>;
       _reviews = results[2] as List<Review>;
+      _tarifNuitSemaineEnCours = tarifNuit;
+      _tarifIsFallback = isFallback;
       _loading = false;
     });
+  }
+
+  /// Renvoie le tarif à la nuit pour la semaine en cours (tarif hebdo / 7).
+  /// Si aucun tarif n'est disponible pour la semaine en cours, retourne le
+  /// premier tarif disponible avec un indicateur de fallback.
+  (double?, bool) _resolveTarifNuit(List<Map<String, dynamic>> tarifs) {
+    if (tarifs.isEmpty) return (null, false);
+    final now = DateTime.now();
+    final yearNow = now.year.toString();
+    final weekNow = _weekNumber(now);
+
+    for (final t in tarifs) {
+      final annee = t['annee_tarif']?.toString();
+      final semaine = int.tryParse(t['semaine_tarif']?.toString() ?? '');
+      if (annee == yearNow && semaine == weekNow) {
+        final tarif = _toDouble(t['tarif']);
+        if (tarif != null) return (tarif / 7, false);
+      }
+    }
+    final fallback = _toDouble(tarifs.first['tarif']);
+    if (fallback != null) return (fallback / 7, true);
+    return (null, false);
+  }
+
+  static double? _toDouble(dynamic v) {
+    if (v == null) return null;
+    if (v is num) return v.toDouble();
+    return double.tryParse(v.toString());
+  }
+
+  static int _weekNumber(DateTime date) {
+    final jan1 = DateTime.utc(date.year, 1, 1);
+    final days = date.toUtc().difference(jan1).inDays;
+    return ((days + jan1.weekday) / 7).ceil();
   }
 
   List<Widget> _buildReviewsPreview() {
@@ -449,9 +490,33 @@ class _PropertyPopupState extends State<PropertyPopup> {
                     Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
-                        if (p.prixNuit != null)
+                        if (_tarifNuitSemaineEnCours != null)
+                          Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Text(
+                                '${_tarifNuitSemaineEnCours!.toStringAsFixed(0)} €/nuit',
+                                style: TextStyle(
+                                  fontWeight: FontWeight.bold,
+                                  fontSize: 18,
+                                  color: Theme.of(context).colorScheme.onSurface,
+                                ),
+                              ),
+                              Text(
+                                _tarifIsFallback
+                                    ? 'Tarif indicatif'
+                                    : 'Semaine en cours',
+                                style: const TextStyle(
+                                  fontSize: 11,
+                                  color: Colors.grey,
+                                ),
+                              ),
+                            ],
+                          )
+                        else if (p.prixNuit != null)
                           Text(
-                            '${p.prixNuit!.toStringAsFixed(0)} €/nuit',
+                            '${(p.prixNuit! / 7).toStringAsFixed(0)} €/nuit',
                             style: TextStyle(
                               fontWeight: FontWeight.bold,
                               fontSize: 18,
