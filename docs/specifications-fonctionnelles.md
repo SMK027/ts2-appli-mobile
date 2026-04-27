@@ -481,7 +481,7 @@ Les données ne sont pas stockées en base de données mais sont nécessaires po
 | Nom complet | `prenom_locataire` + `nom_locataire` |
 | Email | `email_locataire` |
 | Téléphone | `tel_locataire` |
-| Ancienneté | Calculée depuis `dna_locataire` |
+| Ancienneté | Calculée depuis `created_at` |
 | Nombre de réservations | Compteur depuis `GET /reservations` |
 | Réservations terminées | Calculées côté client (date_fin < aujourd'hui) |
 

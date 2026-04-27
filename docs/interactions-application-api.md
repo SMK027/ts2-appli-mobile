@@ -699,7 +699,8 @@ Authorization: Bearer eyJ...
     "nom_locataire": "Dupont",
     "prenom_locataire": "Jean",
     "email_locataire": "jean@exemple.com",
-    "dna_locataire": "2024-01-15",
+    "dna_locataire": "1990-05-20",
+    "created_at": "2024-01-15",
     ...
   }
 ```
@@ -711,7 +712,7 @@ Authorization: Bearer eyJ...
 ```
 
 3. L'écran affiche :
-   - **En-tête** : initiales, nom complet, ancienneté (calculée à partir de `dna_locataire`).
+   - **En-tête** : initiales, nom complet, ancienneté (calculée à partir de `created_at`).
    - **Statistiques** : nombre total de réservations + nombre de séjours terminés (calculés localement à partir des dates).
    - **Menus** : informations personnelles, paiements, sécurité, notifications, réservations, favoris, aide, paramètres.
 
