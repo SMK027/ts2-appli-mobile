@@ -73,9 +73,9 @@ class ProfileScreenState extends State<ProfileScreen> {
   }
 
   String _getAnciennete() {
-    final dna = _profile?['dna_locataire']?.toString();
-    if (dna == null) return '';
-    final date = DateTime.tryParse(dna);
+    final createdAt = _profile?['created_at']?.toString();
+    if (createdAt == null) return '';
+    final date = DateTime.tryParse(createdAt);
     if (date == null) return '';
     final years = DateTime.now().difference(date).inDays ~/ 365;
     if (years < 1) return 'Membre depuis moins d\'un an';
