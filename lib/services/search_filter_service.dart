@@ -16,6 +16,7 @@ class SearchFilterService {
   DateTime? dateFin;
   bool useDistanceFilter = false;
   double distanceMaxKm = 35;
+  Set<int> selectedPrestationIds = <int>{};
 
   void reset() {
     selectedCommune = '';
@@ -29,5 +30,6 @@ class SearchFilterService {
     dateFin = null;
     useDistanceFilter = false;
     distanceMaxKm = 35;
+    selectedPrestationIds = <int>{};
   }
 }

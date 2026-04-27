@@ -35,6 +35,30 @@ class _SearchScreenState extends State<SearchScreen> {
   DateTime? _dateFin;
   bool _useDistanceFilter = false;
   double _distanceMaxKm = 35;
+  Set<int> _selectedPrestationIds = <int>{};
+
+  /// Liste des prestations chargées depuis l'API `/prestations`.
+  /// Chaque entrée contient `id_prestation` (int) et `libelle_prestation` (String).
+  List<Map<String, dynamic>> _prestations = [];
+  bool _loadingPrestations = true;
+
+  /// Devine une icône pertinente à partir du libellé d'une prestation.
+  static IconData _prestationIcon(String label) {
+    final lower = label.toLowerCase();
+    if (lower.contains('wifi') || lower.contains('internet')) return Icons.wifi;
+    if (lower.contains('parking') || lower.contains('garage')) return Icons.local_parking;
+    if (lower.contains('cuisine')) return Icons.kitchen;
+    if (lower.contains('clim')) return Icons.ac_unit;
+    if (lower.contains('lave')) return Icons.local_laundry_service;
+    if (lower.contains('piscine')) return Icons.pool;
+    if (lower.contains('jardin') || lower.contains('terrasse')) return Icons.yard;
+    if (lower.contains('tv') || lower.contains('télé')) return Icons.tv;
+    if (lower.contains('baignoire') || lower.contains('bain')) return Icons.bathtub;
+    if (lower.contains('animaux') || lower.contains('animal')) return Icons.pets;
+    if (lower.contains('chauff')) return Icons.local_fire_department;
+    if (lower.contains('barbecue') || lower.contains('bbq')) return Icons.outdoor_grill;
+    return Icons.check_circle_outline;
+  }
 
   // Mappings nom → id pour l'API
   Map<String, int> _communeNameToId = {};
@@ -59,6 +83,17 @@ class _SearchScreenState extends State<SearchScreen> {
     _dateFin = _filters.dateFin;
     _useDistanceFilter = _filters.useDistanceFilter;
     _distanceMaxKm = _filters.distanceMaxKm;
+    _selectedPrestationIds = {..._filters.selectedPrestationIds};
+    _loadPrestations();
+  }
+
+  Future<void> _loadPrestations() async {
+    final list = await PropertyService().getPrestations();
+    if (!mounted) return;
+    setState(() {
+      _prestations = list;
+      _loadingPrestations = false;
+    });
   }
 
   @override
@@ -78,6 +113,7 @@ class _SearchScreenState extends State<SearchScreen> {
     _filters.dateFin = _dateFin;
     _filters.useDistanceFilter = _useDistanceFilter;
     _filters.distanceMaxKm = _distanceMaxKm;
+    _filters.selectedPrestationIds = {..._selectedPrestationIds};
   }
 
   void _resetFilters() {
@@ -93,6 +129,7 @@ class _SearchScreenState extends State<SearchScreen> {
       _dateFin = null;
       _useDistanceFilter = false;
       _distanceMaxKm = 35;
+      _selectedPrestationIds = <int>{};
     });
     _filters.reset();
   }
@@ -202,6 +239,7 @@ class _SearchScreenState extends State<SearchScreen> {
       animaux: _animaux == 'Tous' ? null : (_animaux == 'Oui' ? 'oui' : 'non'),
       tarifMin: tarifMin,
       tarifMax: tarifMax,
+      prestationsIds: _selectedPrestationIds.toList(),
     );
 
     // Filtrer par disponibilité si dates renseignées
@@ -522,6 +560,76 @@ class _SearchScreenState extends State<SearchScreen> {
                     ),
                 ],
               ),
+            ),
+            const SizedBox(height: 16),
+
+            // Ligne 6 : Prestations incluses (multi-sélection, chargées depuis l'API)
+            _buildFilterField(
+              label: 'Prestations incluses',
+              icon: Icons.checklist,
+              iconColor: const Color(0xFF1A3C5E),
+              child: _loadingPrestations
+                  ? const Padding(
+                      padding: EdgeInsets.symmetric(vertical: 8),
+                      child: SizedBox(
+                        height: 20,
+                        width: 20,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      ),
+                    )
+                  : _prestations.isEmpty
+                      ? const Text(
+                          'Aucune prestation disponible',
+                          style: TextStyle(color: Colors.grey, fontSize: 13),
+                        )
+                      : Wrap(
+                          spacing: 8,
+                          runSpacing: 8,
+                          children: _prestations.map((p) {
+                            final id = p['id_prestation'] is int
+                                ? p['id_prestation'] as int
+                                : int.tryParse(
+                                    p['id_prestation']?.toString() ?? '');
+                            final label =
+                                p['libelle_prestation']?.toString() ?? '';
+                            if (id == null || label.isEmpty) {
+                              return const SizedBox.shrink();
+                            }
+                            final selected =
+                                _selectedPrestationIds.contains(id);
+                            return FilterChip(
+                              selected: selected,
+                              avatar: Icon(
+                                _prestationIcon(label),
+                                size: 16,
+                                color: selected
+                                    ? Colors.white
+                                    : Theme.of(context).colorScheme.primary,
+                              ),
+                              label: Text(label),
+                              selectedColor: const Color(0xFF3366CC),
+                              checkmarkColor: Colors.white,
+                              labelStyle: TextStyle(
+                                color: selected
+                                    ? Colors.white
+                                    : Theme.of(context).colorScheme.onSurface,
+                                fontWeight: selected
+                                    ? FontWeight.w600
+                                    : FontWeight.normal,
+                              ),
+                              onSelected: (value) {
+                                setState(() {
+                                  if (value) {
+                                    _selectedPrestationIds.add(id);
+                                  } else {
+                                    _selectedPrestationIds.remove(id);
+                                  }
+                                });
+                                _saveFilters();
+                              },
+                            );
+                          }).toList(),
+                        ),
             ),
             const SizedBox(height: 32),
 

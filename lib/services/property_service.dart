@@ -131,6 +131,7 @@ class PropertyService {
     String? animaux,
     double? tarifMin,
     double? tarifMax,
+    List<int>? prestationsIds,
   }) async {
     try {
       final params = <String, dynamic>{};
@@ -140,6 +141,9 @@ class PropertyService {
       if (animaux != null && animaux.isNotEmpty) params['animaux'] = animaux;
       if (tarifMin != null) params['tarif_min'] = tarifMin;
       if (tarifMax != null) params['tarif_max'] = tarifMax;
+      if (prestationsIds != null && prestationsIds.isNotEmpty) {
+        params['prestations'] = prestationsIds.join(',');
+      }
 
       final response = await ApiService().client.get(
         ApiConfig.biensEndpoint,
@@ -182,5 +186,18 @@ class PropertyService {
     });
     final results = await Future.wait(futures);
     return results.whereType<Property>().toList();
+  }
+
+  /// Récupère la liste des prestations disponibles (GET /prestations).
+  /// Retourne une liste de Map `{id_prestation, libelle_prestation}`.
+  Future<List<Map<String, dynamic>>> getPrestations() async {
+    try {
+      final response =
+          await ApiService().client.get(ApiConfig.prestationsEndpoint);
+      final List data = response.data as List;
+      return data.cast<Map<String, dynamic>>();
+    } on DioException catch (_) {
+      return [];
+    }
   }
 }

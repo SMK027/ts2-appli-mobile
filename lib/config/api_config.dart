@@ -20,6 +20,7 @@ class ApiConfig {
   static const String avisEndpoint = '/avis';
   static const String communesEndpoint = '/communes';
   static const String typesBienEndpoint = '/types-bien';
+  static const String prestationsEndpoint = '/prestations';
 
   static const String registerUrl = 'https://nestvia.leofranz.fr/connexion_inscription.php';
   static const String forgotPasswordUrl = 'https://nestvia.leofranz.fr/connexion_inscription.php';
