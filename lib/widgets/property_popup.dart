@@ -9,6 +9,7 @@ import '../services/favorite_service.dart';
 import '../services/reservation_service.dart';
 import '../services/search_filter_service.dart';
 import '../screens/booking_screen.dart';
+import '../screens/property_detail_screen.dart';
 
 class PropertyPopup extends StatefulWidget {
   final Property property;
@@ -444,7 +445,7 @@ class _PropertyPopupState extends State<PropertyPopup> {
 
                     const SizedBox(height: 16),
 
-                    // Prix + bouton Réserver
+                    // Prix + boutons Voir détails / Réserver
                     Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
@@ -457,30 +458,62 @@ class _PropertyPopupState extends State<PropertyPopup> {
                               color: Theme.of(context).colorScheme.onSurface,
                             ),
                           ),
-                        ElevatedButton.icon(
-                          onPressed: () {
-                            Navigator.of(context).pop();
-                            Navigator.of(context).push(
-                              MaterialPageRoute(
-                                builder: (_) =>
-                                    BookingScreen(
+                        Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            OutlinedButton.icon(
+                              onPressed: () {
+                                Navigator.of(context).pop();
+                                Navigator.of(context).push(
+                                  MaterialPageRoute(
+                                    builder: (_) => PropertyDetailScreen(
+                                      property: _detail ?? p,
+                                    ),
+                                  ),
+                                );
+                              },
+                              icon: const Icon(Icons.info_outline, size: 16),
+                              label: const Text('Détails'),
+                              style: OutlinedButton.styleFrom(
+                                foregroundColor:
+                                    Theme.of(context).colorScheme.primary,
+                                side: BorderSide(
+                                  color: Theme.of(context).colorScheme.primary,
+                                ),
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(10),
+                                ),
+                              ),
+                            ),
+                            const SizedBox(width: 8),
+                            ElevatedButton.icon(
+                              onPressed: () {
+                                Navigator.of(context).pop();
+                                Navigator.of(context).push(
+                                  MaterialPageRoute(
+                                    builder: (_) => BookingScreen(
                                       property: _detail ?? p,
                                       dateDebut: widget.dateDebut,
                                       dateFin: widget.dateFin,
-                                      nbPersonnes: SearchFilterService().nbCouchages,
+                                      nbPersonnes:
+                                          SearchFilterService().nbCouchages,
                                     ),
+                                  ),
+                                );
+                              },
+                              icon: const Icon(Icons.calendar_today, size: 16),
+                              label: const Text('Réserver'),
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor:
+                                    Theme.of(context).colorScheme.primary,
+                                foregroundColor:
+                                    Theme.of(context).colorScheme.onPrimary,
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(10),
+                                ),
                               ),
-                            );
-                          },
-                          icon: const Icon(Icons.calendar_today, size: 16),
-                          label: const Text('Réserver'),
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: Theme.of(context).colorScheme.primary,
-                            foregroundColor: Theme.of(context).colorScheme.onPrimary,
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(10),
                             ),
-                          ),
+                          ],
                         ),
                       ],
                     ),
